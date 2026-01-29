@@ -2,6 +2,7 @@ import { useAuth0 } from '@auth0/auth0-react';
 import LoginButton from './LoginButton';
 import LogoutButton from './LogoutButton';
 import Profile from './Profile';
+import axios from 'axios';
 
 function App() {
   const { isAuthenticated, isLoading, error } = useAuth0();
@@ -16,6 +17,13 @@ function App() {
     );
   }
 
+  if (isAuthenticated) 
+  {
+    axios.get('http://localhost:5000/api/foobar')
+    .then(Response => console.log(Response.data.message));
+    
+  }
+  
   if (error) {
     return (
       <div className="app-container">
