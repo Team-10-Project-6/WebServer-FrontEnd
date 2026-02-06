@@ -54,12 +54,12 @@ function App() {
       console.log('Token:', token);
       console.log('Token segments:', token.split('.').length);
       
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/user/me`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/profile`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
-      console.log(response.data.message, response.data.user_info)
+      console.log(response.data)
       setData(response.data);
     } catch (error) {
       console.error('Error calling protected endpoint:', error);
