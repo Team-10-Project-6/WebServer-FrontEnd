@@ -1,8 +1,12 @@
+import { useNavigate } from "react-router-dom";
+
 const ContinueButton = () => {
+  const navigate = useNavigate();
+
   return (
     <button
-      onClick={() => { } }
-      className="button Continue"
+      onClick={() => navigate("/feed")}
+      className="button continue"
     >
       Continue To App
     </button>

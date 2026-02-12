@@ -111,8 +111,10 @@ function App() {
             <div className="profile-card">
               <Profile />
             </div>
-            <LogoutButton />
-            <ContinueButton />
+            <div className="button-row">
+              <LogoutButton />
+              <ContinueButton />
+            </div>
           </div>
         ) : (
           <div className="action-card">

@@ -1,8 +1,12 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import './index.css'; // Importing the main CSS file
-import App from './App.jsx'
+import './index.css';
+
+import App from './App.jsx';
+import Feed from './Feed.jsx';
+
 import { Auth0Provider } from '@auth0/auth0-react';
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -14,9 +18,14 @@ createRoot(document.getElementById('root')).render(
         audience: import.meta.env.VITE_AUTH0_AUDIENCE,
         scope: 'openid profile email'
       }}
-      cacheLocation="localstorage" 
+      cacheLocation="localstorage"
     >
-      <App />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<App />} />
+          <Route path="/feed" element={<Feed />} />
+        </Routes>
+      </BrowserRouter>
     </Auth0Provider>
   </StrictMode>
 );

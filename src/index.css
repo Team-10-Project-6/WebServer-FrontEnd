@@ -206,6 +206,11 @@ body {
   outline: none;
 }
 
+.continue {
+  background-color: greenyellow;
+  color: #1a1e27;
+}
+
 .button:focus {
   box-shadow: 0 0 0 4px rgba(99, 179, 237, 0.5);
 }
