@@ -4,6 +4,10 @@ import LogoutButton from './LogoutButton';
 import Profile from './Profile';
 import axios from 'axios';
 import { useState, useEffect } from 'react';
+
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Feed from "./Feed";
+import ContinueButton from './ContinueButton';
 //import api, { setTokenGetter } from './api/axiosConfig';
 
 
@@ -98,7 +102,7 @@ function App() {
             e.currentTarget.style.display = 'none';
           }}
         />
-        <h1 className="main-title">Welcome to Sample0</h1>
+        <h1 className="main-title">Welcome to Project 6 - Photo Sharing App!</h1>
         
         {isAuthenticated ? (
           <div className="logged-in-section">
@@ -108,6 +112,7 @@ function App() {
               <Profile />
             </div>
             <LogoutButton />
+            <ContinueButton />
           </div>
         ) : (
           <div className="action-card">
