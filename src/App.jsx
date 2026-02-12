@@ -33,17 +33,17 @@ function App() {
     );
   }
 
-  // if (isAuthenticated) 
-  // {
-  //   console.log("got here!")
-  //   const token = getAccessTokenSilently();
-  //   axios.get('${process.env.API_URL}/api/foobar',{
-  //     headers: {
-  //       Authorization: 'Bearer ${token}'
-  //     }
-  //   })
-  //   .then(Response => console.log(Response.data.message));
-  // }
+  if (isAuthenticated) 
+  {
+    console.log("got here!")
+    const token = getAccessTokenSilently();
+    axios.get('${process.env.API_URL}/api/foobar',{
+      headers: {
+        Authorization: 'Bearer ${token}'
+      }
+    })
+    .then(Response => console.log(Response.data.message));
+  }
   
 
   const callProtectedEndpoint = async () => {
@@ -58,13 +58,13 @@ function App() {
       console.log('Token:', token);
       console.log('Token segments:', token.split('.').length);
       
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/profile`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/user/me`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      console.log(response.data)
+      
+      console.log(response.data);
       setData(response.data);
+
     } catch (error) {
       console.error('Error calling protected endpoint:', error);
       // Axios errors have more detail
