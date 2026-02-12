@@ -35,49 +35,63 @@ const Feed = () => {
     fetchPosts();
   }, []);
 
-  // Handle new post submission
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!imageFile) return alert("Please select an image");
+// Handle new post submission
+const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    setLoading(true);
+  if (!imageFile) {
+    return alert("Please select an image");
+  }
 
-    try {
-      const token = await getAccessTokenSilently({
-        authorizationParams: {
-          audience: import.meta.env.VITE_AUTH0_AUDIENCE
+  setLoading(true);
+
+  try {
+    // Get Auth0 access token
+    const token = await getAccessTokenSilently({
+      authorizationParams: {
+        audience: import.meta.env.VITE_AUTH0_AUDIENCE
+      }
+    });
+
+    // Create FormData and append file + description
+    const formData = new FormData();
+    formData.append("image", imageFile);
+    formData.append("description", description);
+
+    // Make POST request to backend
+    const response = await axios.post(
+      `${import.meta.env.VITE_API_URL}/api/posts`,
+      formData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+          // Do NOT manually set Content-Type here!
+          // Axios will automatically handle multipart/form-data boundary
         }
-      });
+      }
+    );
 
-      const formData = new FormData();
-      formData.append("image", imageFile);
-      formData.append("description", description);
+    // Success feedback
+    console.log(response.data.message);
+    alert(response.data.message);
 
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/posts`,
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "multipart/form-data"
-          }
-        }
-      );
+    // Clear input fields if needed
+    setImageFile(null);
+    setDescription("");
+  } catch (error) {
+    console.error(error);
 
-      console.log(response.data.message);
-
-      // Reset form
-      setDescription("");
-      setImageFile(null);
-
-      // Refresh feed
-      await fetchPosts();
-    } catch (err) {
-      console.error("Error creating post:", err);
-    } finally {
-      setLoading(false);
+    if (error.response) {
+      // Server returned an error
+      alert(`Error: ${error.response.data.error || error.response.statusText}`);
+    } else {
+      // Network or other error
+      alert("An unexpected error occurred.");
     }
-  };
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div style={{ padding: "2rem", maxWidth: "600px", margin: "0 auto" }}>
