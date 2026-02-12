@@ -39,9 +39,7 @@ const Feed = () => {
 const handleSubmit = async (e) => {
   e.preventDefault();
 
-  if (!imageFile) {
-    return alert("Please select an image");
-  }
+  if (!imageFile) return alert("Please select an image");
 
   setLoading(true);
 
@@ -53,41 +51,50 @@ const handleSubmit = async (e) => {
       }
     });
 
-    // Create FormData and append file + description
-    const formData = new FormData();
-    formData.append("image", imageFile);
-    formData.append("description", description);
+    // Convert image file to Base64
+    const toBase64 = (file) =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+          // strip off the "data:image/...;base64," prefix
+          const base64Data = reader.result.split(",")[1];
+          resolve(base64Data);
+        };
+        reader.onerror = (err) => reject(err);
+      });
 
-    // Make POST request to backend
+    const imageBase64 = await toBase64(imageFile);
+
+    // Create JSON payload
+    const payload = {
+      image: imageBase64,
+      description: description,
+      filename: imageFile.name
+    };
+
+    // Send POST request with JSON
     const response = await axios.post(
       `${import.meta.env.VITE_API_URL}/api/posts`,
-      formData,
+      payload,
       {
         headers: {
-          Authorization: `Bearer ${token}`
-          // Do NOT manually set Content-Type here!
-          // Axios will automatically handle multipart/form-data boundary
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
         }
       }
     );
 
-    // Success feedback
     console.log(response.data.message);
     alert(response.data.message);
 
-    // Clear input fields if needed
+    // Clear inputs
     setImageFile(null);
     setDescription("");
-  } catch (error) {
-    console.error(error);
 
-    if (error.response) {
-      // Server returned an error
-      alert(`Error: ${error.response.data.error || error.response.statusText}`);
-    } else {
-      // Network or other error
-      alert("An unexpected error occurred.");
-    }
+  } catch (err) {
+    console.error(err);
+    alert(err.response?.data?.error || "An unexpected error occurred.");
   } finally {
     setLoading(false);
   }
