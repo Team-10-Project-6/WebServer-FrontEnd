@@ -4,6 +4,10 @@ import LogoutButton from './LogoutButton';
 import Profile from './Profile';
 import axios from 'axios';
 import { useState, useEffect } from 'react';
+
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Feed from "./Feed";
+import ContinueButton from './ContinueButton';
 //import api, { setTokenGetter } from './api/axiosConfig';
 
 
@@ -29,17 +33,17 @@ function App() {
     );
   }
 
-  // if (isAuthenticated) 
-  // {
-  //   console.log("got here!")
-  //   const token = getAccessTokenSilently();
-  //   axios.get('${process.env.API_URL}/api/foobar',{
-  //     headers: {
-  //       Authorization: 'Bearer ${token}'
-  //     }
-  //   })
-  //   .then(Response => console.log(Response.data.message));
-  // }
+  if (isAuthenticated) 
+  {
+    console.log("got here!")
+    const token = getAccessTokenSilently();
+    axios.get('${process.env.API_URL}/api/foobar',{
+      headers: {
+        Authorization: 'Bearer ${token}'
+      }
+    })
+    .then(Response => console.log(Response.data.message));
+  }
   
 
   const callProtectedEndpoint = async () => {
@@ -54,13 +58,13 @@ function App() {
       console.log('Token:', token);
       console.log('Token segments:', token.split('.').length);
       
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/profile`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/user/me`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      console.log(response.data)
+      
+      console.log(response.data);
       setData(response.data);
+
     } catch (error) {
       console.error('Error calling protected endpoint:', error);
       // Axios errors have more detail
@@ -98,7 +102,7 @@ function App() {
             e.currentTarget.style.display = 'none';
           }}
         />
-        <h1 className="main-title">Welcome to Sample0</h1>
+        <h1 className="main-title">Welcome to Project 6 - Photo Sharing App!</h1>
         
         {isAuthenticated ? (
           <div className="logged-in-section">
@@ -107,7 +111,10 @@ function App() {
             <div className="profile-card">
               <Profile />
             </div>
-            <LogoutButton />
+            <div className="button-row">
+              <LogoutButton />
+              <ContinueButton />
+            </div>
           </div>
         ) : (
           <div className="action-card">
