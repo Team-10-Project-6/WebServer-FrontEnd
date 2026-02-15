@@ -1,12 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
-
 import App from './App.jsx';
-import Feed from './Feed.jsx';
-
 import { Auth0Provider } from '@auth0/auth0-react';
-import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -20,12 +16,7 @@ createRoot(document.getElementById('root')).render(
       }}
       cacheLocation="localstorage"
     >
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<App />} />
-          <Route path="/feed" element={<Feed />} />
-        </Routes>
-      </BrowserRouter>
+      <App />
     </Auth0Provider>
   </StrictMode>
 );
