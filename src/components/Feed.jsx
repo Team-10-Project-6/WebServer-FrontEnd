@@ -5,7 +5,7 @@ import { useAuth0 } from '@auth0/auth0-react';
 import axios from 'axios';
 import Post from './Post';
 
-const { TextArea } = Input;
+const { TextArea, Search } = Input;
 
 // Helper function to convert file to base64
 const convertFileToBase64 = (file) => {
@@ -82,6 +82,43 @@ function Feed({ posts, setPosts, user }) {
       message.error("Failed to fetch posts");
     }
   };
+
+  const handleSearch = async (value) => {
+      if (!value.trim()) {
+        fetchPosts(); 
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const token = await getAccessTokenSilently({
+          authorizationParams: { audience: import.meta.env.VITE_AUTH0_AUDIENCE }
+        });
+
+        // Point this to the NEW /search endpoint
+        const response = await axios.post(
+          `${import.meta.env.VITE_API_URL}/api/posts/search`, 
+          { query: value }, 
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json"
+            }
+          }
+        );
+
+        setPosts(response.data);
+
+        if (response.data.length === 0) {
+          message.info("No matching results found.");
+        }
+      } catch (err) {
+        console.error("Search error:", err);
+        message.error("An error occurred during search.");
+      } finally {
+        setLoading(false);
+      }
+    };
 
   const handleImageUpload = (file) => {
     if (!validateImageFile(file)) {
@@ -165,8 +202,21 @@ function Feed({ posts, setPosts, user }) {
     ));
   };
 
+
+
   return (
     <>
+          {/* Search Bar Section */}
+      <Card style={{ marginBottom: '16px' }}>
+        <Search
+          placeholder="Search for posts..."
+          enterButton="Search"
+          size="large"
+          loading={loading}
+          onSearch={handleSearch}
+          allowClear
+        />
+      </Card>
       {/* Create Post Card */}
       <Card 
         style={{ marginBottom: '16px' }}
