@@ -1,31 +1,31 @@
 import { useAuth0 } from '@auth0/auth0-react';
 import axios from 'axios';
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Avatar, Dropdown, Card, Space, Button, Spin, Result } from 'antd';
-import { UserOutlined, SettingOutlined, LogoutOutlined, LoginOutlined, HomeOutlined } from '@ant-design/icons';
+import { UserOutlined, SettingOutlined, LogoutOutlined, LoginOutlined } from '@ant-design/icons';
 import Feed from "./components/Feed";
 import Profile from './components/Profile';
-import LoginButton from './components/LoginButton';
-import LogoutButton from './components/LogoutButton';
-import ContinueButton from './components/ContinueButton';
+import PostDetail from './components/PostDetail';
 
 const { Header, Content } = Layout;
 
 function AppContent() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { loginWithRedirect, logout, isLoading, isAuthenticated, getAccessTokenSilently, user, error } = useAuth0();
   const [data, setData] = useState(null);
   const [posts, setPosts] = useState([]);
   
-  console.log('AUDIENCE CHECK:', import.meta.env.VITE_AUTH0_AUDIENCE);
-
   useEffect(() => {
     if (isAuthenticated) {
       callProtectedEndpoint();
-      navigate('/feed');
+      // Only redirect to /feed from root
+      if (location.pathname === '/') {
+        navigate('/feed');
+      }
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, location.pathname]);
 
   const callProtectedEndpoint = async () => {
     try {
@@ -35,23 +35,13 @@ function AppContent() {
         }
       });
       
-      console.log('Token:', token);
-      console.log('Token segments:', token.split('.').length);
-      
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/user/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      console.log(response.data);
       setData(response.data);
     } catch (error) {
       console.error('Error calling protected endpoint:', error);
-      if (error.response) {
-        console.error('Response error:', error.response.data);
-        console.error('Status:', error.response.status);
-      } else if (error.request) {
-        console.error('No response received');
-      }
     }
   };
 
@@ -78,8 +68,6 @@ function AppContent() {
   ];
 
   const handleMenuClick = ({ key }) => {
-    console.log('Menu clicked:', key);
-    
     switch(key) {
       case 'profile':
         navigate('/profile');
@@ -119,55 +107,6 @@ function AppContent() {
     );
   }
 
-  if (!isAuthenticated) {
-    return (
-      <Layout style={{ minHeight: '100vh', background: '#f0f2f5' }}>
-        <Header style={{ 
-          background: '#fff', 
-          padding: '0 24px', 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          borderBottom: '1px solid #f0f0f0'
-        }}>
-          <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#1890ff' }}>
-            Photo Sharing App
-          </div>
-          <Button 
-            type="primary" 
-            icon={<LoginOutlined />}
-            onClick={() => loginWithRedirect()}
-          >
-            Sign In
-          </Button>
-        </Header>
-        
-        <Content style={{ 
-          padding: '48px 24px', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center' 
-        }}>
-          <Card style={{ maxWidth: '500px', width: '100%', textAlign: 'center' }}>
-            <Space direction="vertical" size="large" style={{ width: '100%' }}>
-              <img 
-                src="https://cdn.auth0.com/quantum-assets/dist/latest/logos/auth0/auth0-lockup-en-ondark.png" 
-                alt="Auth0 Logo" 
-                style={{ maxWidth: '200px', margin: '0 auto' }}
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-              <h1 style={{ fontSize: '24px', margin: 0 }}>Welcome to Photo Sharing App!</h1>
-              <p style={{ color: '#666' }}>Get started by signing in to your account</p>
-              <LoginButton />
-            </Space>
-          </Card>
-        </Content>
-      </Layout>
-    );
-  }
-
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Header style={{ 
@@ -177,9 +116,10 @@ function AppContent() {
         justifyContent: 'space-between', 
         alignItems: 'center',
         borderBottom: '1px solid #f0f0f0',
-        position: 'sticky',
+        position: 'fixed',
         top: 0,
-        zIndex: 1000
+        zIndex: 1000,
+        width: '100%'
       }}>
         <div 
           style={{ fontSize: '20px', fontWeight: 'bold', color: '#1890ff', cursor: 'pointer' }}
@@ -188,23 +128,46 @@ function AppContent() {
           Photo Sharing App
         </div>
         
-        <Dropdown
-          menu={{ items: profileMenuItems, onClick: handleMenuClick }}
-          placement="bottomRight"
-          trigger={['click']}
-        >
-          <Avatar 
-            size="large" 
-            src={user?.picture}
-            icon={!user?.picture && <UserOutlined />}
-            style={{ cursor: 'pointer', backgroundColor: '#1890ff' }}
-          />
-        </Dropdown>
+        {/* Show Login button or Profile dropdown based on auth state */}
+        {isAuthenticated ? (
+          <Dropdown
+            menu={{ items: profileMenuItems, onClick: handleMenuClick }}
+            placement="bottomRight"
+            trigger={['click']}
+          >
+            <Avatar 
+              size="large" 
+              src={user?.picture}
+              icon={!user?.picture && <UserOutlined />}
+              style={{ cursor: 'pointer', backgroundColor: '#1890ff' }}
+            />
+          </Dropdown>
+        ) : (
+          <Button 
+            type="primary" 
+            icon={<LoginOutlined />}
+            onClick={() => loginWithRedirect()}
+          >
+            Log In
+          </Button>
+        )}
       </Header>
 
-      <Content style={{ padding: '24px 0', background: '#f0f2f5' }}>
-        <div style={{ maxWidth: '600px', margin: '0 auto', padding: '0 16px' }}>
+      <Content style={{ marginTop: '64px', height: 'calc(100vh - 64px)', overflow: 'auto', background: '#f0f2f5' }}>
+        <div style={{ maxWidth: '800px', margin: '0 auto', padding: '24px 16px' }}>
           <Routes>
+            <Route 
+              path="/" 
+              element={
+                <Feed 
+                  posts={posts} 
+                  setPosts={setPosts} 
+                  user={user}
+                  data={data}
+                  isAuthenticated={isAuthenticated}
+                />
+              } 
+            />
             <Route 
               path="/feed" 
               element={
@@ -213,24 +176,59 @@ function AppContent() {
                   setPosts={setPosts} 
                   user={user}
                   data={data}
+                  isAuthenticated={isAuthenticated}
                 />
               } 
             />
             <Route 
+              path="/post/:postId" 
+              element={<PostDetail isAuthenticated={isAuthenticated} />} 
+            />
+            <Route 
               path="/profile" 
               element={
-                <Card>
-                  <Profile />
-                </Card>
+                isAuthenticated ? (
+                  <Card>
+                    <Profile />
+                  </Card>
+                ) : (
+                  <Card>
+                    <Result
+                      status="403"
+                      title="Please Log In"
+                      subTitle="You need to be logged in to view your profile."
+                      extra={
+                        <Button type="primary" onClick={() => loginWithRedirect()}>
+                          Log In
+                        </Button>
+                      }
+                    />
+                  </Card>
+                )
               } 
             />
             <Route 
               path="/settings" 
               element={
-                <Card>
-                  <h2>Settings</h2>
-                  <p>Settings page coming soon...</p>
-                </Card>
+                isAuthenticated ? (
+                  <Card>
+                    <h2>Settings</h2>
+                    <p>Settings page coming soon...</p>
+                  </Card>
+                ) : (
+                  <Card>
+                    <Result
+                      status="403"
+                      title="Please Log In"
+                      subTitle="You need to be logged in to access settings."
+                      extra={
+                        <Button type="primary" onClick={() => loginWithRedirect()}>
+                          Log In
+                        </Button>
+                      }
+                    />
+                  </Card>
+                )
               } 
             />
           </Routes>
