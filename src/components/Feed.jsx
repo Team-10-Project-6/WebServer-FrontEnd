@@ -51,7 +51,7 @@ const createImagePreview = (file, setImagePreview) => {
   reader.readAsDataURL(file);
 };
 
-function Feed({ posts, setPosts, user }) {
+function Feed({ posts, setPosts, user, isAuthenticated  }) {
   const [newPostContent, setNewPostContent] = useState('');
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
@@ -65,16 +65,8 @@ function Feed({ posts, setPosts, user }) {
   const fetchPosts = async () => {
     try {
       console.log("TRYING TO FETCH");
-      const token = await getAccessTokenSilently({
-        authorizationParams: {
-          audience: import.meta.env.VITE_AUTH0_AUDIENCE
-        }
-      });
 
-      const response = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/posts`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await axios.get( `${import.meta.env.VITE_API_URL}/api/posts` );
 
       setPosts(response.data);
     } catch (err) {
@@ -91,21 +83,8 @@ function Feed({ posts, setPosts, user }) {
 
       setLoading(true);
       try {
-        const token = await getAccessTokenSilently({
-          authorizationParams: { audience: import.meta.env.VITE_AUTH0_AUDIENCE }
-        });
-
         // Point this to the NEW /search endpoint
-        const response = await axios.post(
-          `${import.meta.env.VITE_API_URL}/api/posts/search`, 
-          { query: value }, 
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json"
-            }
-          }
-        );
+        const response = await axios.post( `${import.meta.env.VITE_API_URL}/api/posts/search`, { query: value } );
 
         setPosts(response.data);
 
@@ -217,7 +196,8 @@ function Feed({ posts, setPosts, user }) {
           allowClear
         />
       </Card>
-      {/* Create Post Card */}
+      {/* Create Post Card if authenticated*/}
+      {isAuthenticated && (
       <Card 
         style={{ marginBottom: '16px' }}
         bodyStyle={{ padding: '16px' }}
@@ -297,6 +277,7 @@ function Feed({ posts, setPosts, user }) {
           </div>
         </Space>
       </Card>
+      )}
 
       {/* Feed Posts */}
       {posts.length === 0 ? (
@@ -306,7 +287,7 @@ function Feed({ posts, setPosts, user }) {
             description={
               <Space direction="vertical" size="small">
                 <span style={{ fontSize: '16px', fontWeight: 500 }}>No posts yet</span>
-                <span style={{ color: '#899' }}>Be the first to share something!</span>
+                <span style={{ color: '#899' }}>{ isAuthenticated ? 'Be the first to share something!'  : 'Log in to share your photos!'}</span>
               </Space>
             }
           />
@@ -317,6 +298,8 @@ function Feed({ posts, setPosts, user }) {
             key={post.id} 
             post={post}
             onLike={handleLikePost}
+            clickable={true}
+            isAuthenticated={isAuthenticated}
           />
         ))
       )}
