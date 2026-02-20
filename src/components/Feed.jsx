@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Card, Input, Button, Space, Avatar, Empty, Upload, message } from 'antd';
+import { useState, useEffect, useRef } from 'react';
+import { Card, Input, Button, Space, Avatar, Empty, Upload, message, Spin } from 'antd';
 import { UserOutlined, PictureOutlined } from '@ant-design/icons';
 import { useAuth0 } from '@auth0/auth0-react';
 import axios from 'axios';
@@ -57,47 +57,95 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
   const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const { getAccessTokenSilently } = useAuth0();
+  const [fetchingMore, setFetchingMore] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const pageRef = useRef(1);
+  const hasMoreRef = useRef(true);
+  const observerRef = useRef(null);
+  const lastPostRef = useRef(null);
 
   useEffect(() => {
-    fetchPosts();
+    fetchPosts(true);
   }, []);
 
-  const fetchPosts = async () => {
+  useEffect(() => {
+    // Set up intersection observer for infinite scroll
+    if (observerRef.current) observerRef.current.disconnect();
+
+    observerRef.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMoreRef.current && !fetchingMore) {
+        fetchPosts(false);
+      }
+    });
+
+    if (lastPostRef.current) {
+      observerRef.current.observe(lastPostRef.current);
+    }
+
+    return () => {
+      if (observerRef.current) observerRef.current.disconnect();
+    };
+  }, [posts, fetchingMore]);
+
+  const fetchPosts = async (reset = false) => {
+    // Avoid "double-fetching" if you scroll too fast
+    if (fetchingMore) return;
+    
+    setFetchingMore(true);
+    if (reset) setLoading(true);
+
     try {
-      console.log("TRYING TO FETCH");
+      const page = reset ? 1 : pageRef.current;
+      const response = await axios.get( `${import.meta.env.VITE_API_URL}/api/posts?page=${page}` );
 
-      const response = await axios.get( `${import.meta.env.VITE_API_URL}/api/posts` );
+      const postsData = response.data;
+      if (reset) {
+        setPosts(postsData);
+        pageRef.current = 2;
+      } else {
+        setPosts(prev => [...prev, ...postsData]);
+        pageRef.current += 1;
+      }
 
-      setPosts(response.data);
+      // If we got less than 20 posts, there are no more
+      hasMoreRef.current = postsData.length === 20;
+
     } catch (err) {
       console.error("Error fetching posts:", err);
       message.error("Failed to fetch posts");
+    } finally {
+      setLoading(false);
+      setFetchingMore(false);
     }
   };
 
   const handleSearch = async (value) => {
-      if (!value.trim()) {
-        fetchPosts(); 
-        return;
+    if (!value.trim()) {
+      pageRef.current = 1;
+      hasMoreRef.current = true;
+      fetchPosts(true);
+      return;
+    }
+
+    setIsSearching(true);
+    hasMoreRef.current = false; // Disable pagination in search, dont know if we want to implement that or not
+
+    try {
+      // Point this to the NEW /search endpoint
+      const response = await axios.post( `${import.meta.env.VITE_API_URL}/api/posts/search`, { query: value } );
+
+      setPosts(response.data);
+
+      if (response.data.length === 0) {
+        message.info("No matching results found.");
       }
-
-      setLoading(true);
-      try {
-        // Point this to the NEW /search endpoint
-        const response = await axios.post( `${import.meta.env.VITE_API_URL}/api/posts/search`, { query: value } );
-
-        setPosts(response.data);
-
-        if (response.data.length === 0) {
-          message.info("No matching results found.");
-        }
-      } catch (err) {
-        console.error("Search error:", err);
-        message.error("An error occurred during search.");
-      } finally {
-        setLoading(false);
-      }
-    };
+    } catch (err) {
+      console.error("Search error:", err);
+      message.error("An error occurred during search.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleImageUpload = (file) => {
     if (!validateImageFile(file)) {
@@ -122,6 +170,11 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
 
     if (!imageFile) {
       message.error("Please select an image");
+      return;
+    }
+
+    if (!newPostContent.trim()) {
+      message.error("Please add a description");
       return;
     }
 
@@ -163,7 +216,9 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
       setNewPostContent("");
 
       // Refresh posts
-      await fetchPosts();
+      pageRef.current = 1;
+      hasMoreRef.current = true;
+      fetchPosts(true);
 
     } catch (err) {
       console.error(err);
@@ -181,102 +236,109 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
     ));
   };
 
-
+  if (loading && posts.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: '48px 0' }}>
+        <Spin size="large" />
+        <div style={{ marginTop: '16px', color: '#666' }}>Loading posts...</div>
+      </div>
+    );
+  }
 
   return (
     <>
-          {/* Search Bar Section */}
+      {/* Search Bar Section */}
       <Card style={{ marginBottom: '16px' }}>
         <Search
           placeholder="Search for posts..."
           enterButton="Search"
           size="large"
-          loading={loading}
+          loading={isSearching}
           onSearch={handleSearch}
           allowClear
         />
       </Card>
       {/* Create Post Card if authenticated*/}
       {isAuthenticated && (
-      <Card 
-        style={{ marginBottom: '16px' }}
-        bodyStyle={{ padding: '16px' }}
-      >
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <Space align="start" style={{ width: '100%' }}>
-            <Avatar 
-              src={user?.picture}
-              icon={!user?.picture && <UserOutlined />}
-              size={48}
-            />
-            <TextArea 
-              placeholder="What's on your mind?" 
-              rows={3}
-              value={newPostContent}
-              onChange={(e) => setNewPostContent(e.target.value)}
-              style={{ flex: 1 }}
-              autoSize={{ minRows: 3, maxRows: 6 }}
-            />
-          </Space>
+        <Card 
+          style={{ marginBottom: '16px' }}
+          bodyStyle={{ padding: '16px' }}
+        >
+          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            <Space align="start" style={{ width: '100%' }}>
+              <Avatar 
+                src={user?.picture}
+                icon={!user?.picture && <UserOutlined />}
+                size={48}
+              />
+              <TextArea 
+                placeholder="What's on your mind?" 
+                rows={3}
+                value={newPostContent}
+                onChange={(e) => setNewPostContent(e.target.value)}
+                style={{ flex: 1 }}
+                autoSize={{ minRows: 3, maxRows: 6 }}
+              />
+            </Space>
 
           {/* Image Preview */}
-          {imagePreview && (
-            <div style={{ position: 'relative', maxWidth: '100%' }}>
-              <img 
-                src={imagePreview} 
-                alt="Preview" 
-                style={{ 
-                  maxWidth: '100%', 
-                  maxHeight: '400px', 
-                  borderRadius: '8px',
-                  objectFit: 'contain'
-                }} 
-              />
-              <Button 
-                danger
-                size="small"
-                onClick={handleRemoveImage}
-                style={{ 
-                  position: 'absolute', 
-                  top: '8px', 
-                  right: '8px' 
-                }}
+            {imagePreview && (
+              <div style={{ position: 'relative', maxWidth: '100%' }}>
+                <img 
+                  src={imagePreview} 
+                  alt="Preview" 
+                  style={{ 
+                    maxWidth: '100%', 
+                    maxHeight: '400px', 
+                    borderRadius: '8px',
+                    objectFit: 'contain'
+                  }} 
+                />
+                <Button 
+                  danger
+                  size="small"
+                  onClick={handleRemoveImage}
+                  style={{ 
+                    position: 'absolute', 
+                    top: '8px', 
+                    right: '8px' 
+                  }}
+                >
+                  Remove
+                </Button>
+              </div>
+            )}
+
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              borderTop: '1px solid #f0f0f0',
+              paddingTop: '12px'
+            }}>
+              <Upload
+                beforeUpload={handleImageUpload}
+                showUploadList={false}
+                accept="image/*"
               >
-                Remove
+                <Button 
+                  type="text" 
+                  icon={<PictureOutlined />}
+                >
+                  Photo/Video
+                </Button>
+              </Upload>
+              <Button 
+                type="primary" 
+                onClick={handleSubmit}
+                loading={loading}
+                disabled={!imageFile || !newPostContent.trim()}
+              >
+                Post
               </Button>
             </div>
-          )}
-
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            borderTop: '1px solid #f0f0f0',
-            paddingTop: '12px'
-          }}>
-            <Upload
-              beforeUpload={handleImageUpload}
-              showUploadList={false}
-              accept="image/*"
-            >
-              <Button 
-                type="text" 
-                icon={<PictureOutlined />}
-              >
-                Photo/Video
-              </Button>
-            </Upload>
-            <Button 
-              type="primary" 
-              onClick={handleSubmit}
-              loading={loading}
-              disabled={!imageFile}
-            >
-              Post
-            </Button>
-          </div>
-        </Space>
-      </Card>
+          </Space>
+        </Card>
       )}
 
       {/* Feed Posts */}
@@ -293,15 +355,39 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
           />
         </Card>
       ) : (
-        posts.map(post => (
-          <Post 
-            key={post.id} 
-            post={post}
-            onLike={handleLikePost}
-            clickable={true}
-            isAuthenticated={isAuthenticated}
-          />
-        ))
+        <>
+          {posts.map((post, index) => (
+            <div 
+              key={post.id}
+              ref={index === posts.length - 1 ? lastPostRef : null}
+            >
+              <Post 
+                post={post}
+                onLike={handleLikePost}
+                clickable={true}
+                isAuthenticated={isAuthenticated}
+              />
+            </div>
+          ))}
+
+          {fetchingMore && hasMoreRef.current && (
+            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+              <Spin />
+              <div style={{ marginTop: '8px', color: '#666' }}>Loading more posts...</div>
+            </div>
+          )}
+
+          {!hasMoreRef.current && posts.length > 0 && (
+            <div style={{ 
+              textAlign: 'center', 
+              padding: '20px 0',
+              color: '#999',
+              fontSize: '14px'
+            }}>
+              You've reached the end
+            </div>
+          )}
+        </>
       )}
     </>
   );
