@@ -9,19 +9,14 @@ import CommentSection from './CommentSection';
 
 function PostDetail({ isAuthenticated }) {
   const { postId } = useParams();
-  const navigate = useNavigate();
-  const { getAccessTokenSilently, loginWithRedirect } = useAuth0();
-  
+  const navigate = useNavigate();  
   const [post, setPost] = useState(null);
-  const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [commentsLoading, setCommentsLoading] = useState(true);
   const [isLiked, setIsLiked] = useState(false);
   const [likes, setLikes] = useState(0);
 
   useEffect(() => {
     fetchPost();
-    fetchComments();
   }, [postId]);
 
   const fetchPost = async () => {
@@ -32,7 +27,7 @@ function PostDetail({ isAuthenticated }) {
 
       let postData = response.data;
       if (Array.isArray(postData)) {
-        postData = postData[0];
+        postData = postData[0]; 
       }
 
       setPost(postData);
@@ -43,29 +38,6 @@ function PostDetail({ isAuthenticated }) {
       message.error('Failed to load post');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchComments = async () => {
-    try {
-      const response = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/comments/${postId}`
-      );
-
-      let commentsData = response.data;
-      if (commentsData.comments) {
-        commentsData = commentsData.comments;
-      }
-      if (!Array.isArray(commentsData)) {
-        commentsData = [];
-      }
-
-      setComments(commentsData);
-    } catch (error) {
-      console.error('Error fetching comments:', error);
-      message.error('Failed to load comments');
-    } finally {
-      setCommentsLoading(false);
     }
   };
 
@@ -109,15 +81,12 @@ function PostDetail({ isAuthenticated }) {
         onLike={handleLike}
         isLiked={isLiked}
         likes={likes}
-        commentCount={comments.length}
         clickable={false}
+        isAuthenticated={isAuthenticated}
       />
 
       <CommentSection 
         postId={postId}
-        comments={comments}
-        commentsLoading={commentsLoading}
-        onCommentAdded={fetchComments}
         isAuthenticated={isAuthenticated}
       />
     </div>
