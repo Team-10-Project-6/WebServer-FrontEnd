@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, Input, Button, Space, Avatar, Empty, Upload, message, Spin } from 'antd';
 import { UserOutlined, PictureOutlined } from '@ant-design/icons';
 import { useAuth0 } from '@auth0/auth0-react';
@@ -57,46 +57,34 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
   const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const { getAccessTokenSilently } = useAuth0();
-  const [fetchingMore, setFetchingMore] = useState(false);
+  const [fetchingMore, _setFetchingMore] = useState(false);
+  const fetchingMoreRef = useRef(false);
   const [isSearching, setIsSearching] = useState(false);
   const pageRef = useRef(1);
   const hasMoreRef = useRef(true);
   const observerRef = useRef(null);
   const lastPostRef = useRef(null);
+  const searchPageRef = useRef(1);
+  const searchQueryRef = useRef('');
+
+  const setFetchingMore = (val) => {
+    fetchingMoreRef.current = val;
+    _setFetchingMore(val);
+  };
 
   useEffect(() => {
     fetchPosts(true);
   }, []);
 
-  useEffect(() => {
-    // Set up intersection observer for infinite scroll
-    if (observerRef.current) observerRef.current.disconnect();
-
-    observerRef.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMoreRef.current && !fetchingMore) {
-        fetchPosts(false);
-      }
-    });
-
-    if (lastPostRef.current) {
-      observerRef.current.observe(lastPostRef.current);
-    }
-
-    return () => {
-      if (observerRef.current) observerRef.current.disconnect();
-    };
-  }, [posts, fetchingMore]);
-
   const fetchPosts = async (reset = false) => {
-    // Avoid "double-fetching" if you scroll too fast
-    if (fetchingMore) return;
-    
+    if (fetchingMoreRef.current) return;
+
     setFetchingMore(true);
     if (reset) setLoading(true);
 
     try {
       const page = reset ? 1 : pageRef.current;
-      const response = await axios.get( `${import.meta.env.VITE_API_URL}/api/posts?page=${page}` );
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/posts?page=${page}`);
 
       const postsData = response.data;
       if (reset) {
@@ -107,7 +95,6 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
         pageRef.current += 1;
       }
 
-      // If we got less than 20 posts, there are no more
       hasMoreRef.current = postsData.length === 20;
 
     } catch (err) {
@@ -119,33 +106,75 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
     }
   };
 
-  const handleSearch = async (value) => {
+  const handleSearch = useCallback(async (value, reset = true) => {
+    if (fetchingMoreRef.current) return;
+
     if (!value.trim()) {
+      searchQueryRef.current = '';
       pageRef.current = 1;
       hasMoreRef.current = true;
       fetchPosts(true);
       return;
     }
 
-    setIsSearching(true);
-    hasMoreRef.current = false; // Disable pagination in search, dont know if we want to implement that or not
+    if (reset) {
+      searchQueryRef.current = value;
+      searchPageRef.current = 1;
+      setIsSearching(true);
+    }
+
+    setFetchingMore(true);
+    hasMoreRef.current = false;
 
     try {
-      // Point this to the NEW /search endpoint
-      const response = await axios.post( `${import.meta.env.VITE_API_URL}/api/posts/search`, { query: value } );
+      const page = reset ? 1 : searchPageRef.current;
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/posts/search`, {
+        query: value,
+        page: page,
+      });
 
-      setPosts(response.data);
+      if (reset) {
+        setPosts(response.data);
+      } else {
+        setPosts(prev => [...prev, ...response.data]);
+      }
 
-      if (response.data.length === 0) {
+      hasMoreRef.current = response.data.length === 20;
+      searchPageRef.current = reset ? 2 : searchPageRef.current + 1;
+
+      if (reset && response.data.length === 0) {
         message.info("No matching results found.");
       }
     } catch (err) {
       console.error("Search error:", err);
       message.error("An error occurred during search.");
     } finally {
-      setLoading(false);
+      setFetchingMore(false);
+      setIsSearching(false);
     }
-  };
+  }, [setPosts]);
+
+  useEffect(() => {
+    if (observerRef.current) observerRef.current.disconnect();
+
+    observerRef.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMoreRef.current && !fetchingMoreRef.current) {
+        if (searchQueryRef.current) {
+          handleSearch(searchQueryRef.current, false);
+        } else {
+          fetchPosts(false);
+        }
+      }
+    });
+
+    if (lastPostRef.current) {
+      observerRef.current.observe(lastPostRef.current);
+    }
+
+    return () => {
+      if (observerRef.current) observerRef.current.disconnect();
+    };
+  }, [posts, handleSearch]);
 
   const handleImageUpload = (file) => {
     if (!validateImageFile(file)) {
@@ -155,7 +184,7 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
     createImagePreview(file, setImagePreview);
     setImageFile(file);
 
-    return false; // Prevent auto upload
+    return false;
   };
 
   const handleRemoveImage = () => {
@@ -210,12 +239,10 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
       console.log(response.data.message);
       message.success(response.data.message || "Post created successfully!");
 
-      // Clear inputs
       setImageFile(null);
       setImagePreview(null);
       setNewPostContent("");
 
-      // Refresh posts
       pageRef.current = 1;
       hasMoreRef.current = true;
       fetchPosts(true);
@@ -229,8 +256,8 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
   };
 
   const handleLikePost = (postId) => {
-    setPosts(posts.map(post => 
-      post.id === postId 
+    setPosts(posts.map(post =>
+      post.id === postId
         ? { ...post, likes: post.liked ? post.likes - 1 : post.likes + 1, liked: !post.liked }
         : post
     ));
@@ -258,21 +285,22 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
           allowClear
         />
       </Card>
-      {/* Create Post Card if authenticated*/}
+
+      {/* Create Post Card if authenticated */}
       {isAuthenticated && (
-        <Card 
+        <Card
           style={{ marginBottom: '16px' }}
           bodyStyle={{ padding: '16px' }}
         >
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
             <Space align="start" style={{ width: '100%' }}>
-              <Avatar 
+              <Avatar
                 src={user?.picture}
                 icon={!user?.picture && <UserOutlined />}
                 size={48}
               />
-              <TextArea 
-                placeholder="What's on your mind?" 
+              <TextArea
+                placeholder="What's on your mind?"
                 rows={3}
                 value={newPostContent}
                 onChange={(e) => setNewPostContent(e.target.value)}
@@ -281,27 +309,26 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
               />
             </Space>
 
-          {/* Image Preview */}
             {imagePreview && (
               <div style={{ position: 'relative', maxWidth: '100%' }}>
-                <img 
-                  src={imagePreview} 
-                  alt="Preview" 
-                  style={{ 
-                    maxWidth: '100%', 
-                    maxHeight: '400px', 
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '400px',
                     borderRadius: '8px',
                     objectFit: 'contain'
-                  }} 
+                  }}
                 />
-                <Button 
+                <Button
                   danger
                   size="small"
                   onClick={handleRemoveImage}
-                  style={{ 
-                    position: 'absolute', 
-                    top: '8px', 
-                    right: '8px' 
+                  style={{
+                    position: 'absolute',
+                    top: '8px',
+                    right: '8px'
                   }}
                 >
                   Remove
@@ -309,8 +336,8 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
               </div>
             )}
 
-            <div style={{ 
-              display: 'flex', 
+            <div style={{
+              display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               borderTop: '1px solid #f0f0f0',
@@ -321,15 +348,15 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
                 showUploadList={false}
                 accept="image/*"
               >
-                <Button 
-                  type="text" 
+                <Button
+                  type="text"
                   icon={<PictureOutlined />}
                 >
                   Photo/Video
                 </Button>
               </Upload>
-              <Button 
-                type="primary" 
+              <Button
+                type="primary"
                 onClick={handleSubmit}
                 loading={loading}
                 disabled={!imageFile || !newPostContent.trim()}
@@ -349,7 +376,7 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
             description={
               <Space direction="vertical" size="small">
                 <span style={{ fontSize: '16px', fontWeight: 500 }}>No posts yet</span>
-                <span style={{ color: '#899' }}>{ isAuthenticated ? 'Be the first to share something!'  : 'Log in to share your photos!'}</span>
+                <span style={{ color: '#899' }}>{isAuthenticated ? 'Be the first to share something!' : 'Log in to share your photos!'}</span>
               </Space>
             }
           />
@@ -357,11 +384,11 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
       ) : (
         <>
           {posts.map((post, index) => (
-            <div 
+            <div
               key={post.id}
               ref={index === posts.length - 1 ? lastPostRef : null}
             >
-              <Post 
+              <Post
                 post={post}
                 onLike={handleLikePost}
                 clickable={true}
@@ -378,8 +405,8 @@ function Feed({ posts, setPosts, user, isAuthenticated  }) {
           )}
 
           {!hasMoreRef.current && posts.length > 0 && (
-            <div style={{ 
-              textAlign: 'center', 
+            <div style={{
+              textAlign: 'center',
               padding: '20px 0',
               color: '#999',
               fontSize: '14px'
