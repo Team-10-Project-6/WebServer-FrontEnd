@@ -54,13 +54,11 @@ const Profile = () => {
     try {
       const page = reset ? 1 : pageRef.current;
       console.log("Fetching my posts - page:", page);
-
       const token = await getAccessTokenSilently({
         authorizationParams: {
           audience: import.meta.env.VITE_AUTH0_AUDIENCE
         }
       });
-
       const response = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/posts/me?page=${page}`,
         {
